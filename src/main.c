@@ -29,8 +29,9 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#define PORT 4747
+#define PORT "4747"
 #define ADDRESS "127.0.0.1"
+#define MESSAGE_SIZE 4
 
 void error(const char *msg)
 {
@@ -39,57 +40,60 @@ void error(const char *msg)
 }
 
 int main(int argc, char *argv[]) {
-    printf("main()");
+    printf("main()\n");
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         error("ERROR opening socket");
     } else {
-        printf("Socket opened\n");
+        printf("Socket opened.\n");
     }
 
-    struct hostent *server = gethostbyname(ADDRESS);
-    if (server == NULL) {
-        fprintf(stderr,"ERROR, no such host\n");
-        exit(0);
+    struct addrinfo hints, *servinfo;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    int n = getaddrinfo(ADDRESS, PORT, &hints, &servinfo);
+
+    if(n != 0) {
+        error("Can't get server address info\n");
     } else {
-        printf("Host found on %s\n", ADDRESS);
+        printf("Successfuly get address info.\n");
     }
-    
-    struct sockaddr_in serv_addr;
-    bzero((char *) &serv_addr, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
-    serv_addr.sin_port = htons(PORT);
 
-    if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
-        error("ERROR connecting");
+    n = connect(sockfd, servinfo->ai_addr, (socklen_t) servinfo->ai_addrlen);
+    if (n != 0) {
+        error("Can't connect\n");
     } else {
-         char* strAddr = inet_ntoa(serv_addr.sin_addr);
-        printf("Connected to %s:%d\n", strAddr, PORT);
+        printf("Successfuly connected to %s:%s.\n", ADDRESS, PORT);
     }
 
-    // int n;
-    // char buffer[256];
+    char buffer[MESSAGE_SIZE];
 
+    printf("Please enter the message: ");
+    bzero(buffer, MESSAGE_SIZE);
+    fgets(buffer, MESSAGE_SIZE - 1, stdin);
+    buffer[strcspn(buffer, "\n")] = 0;
 
-    // 
+    n = write(sockfd, buffer, MESSAGE_SIZE);
+    if (n < 0) {
+        error("ERROR writing to socket");
+    } else {
+        printf("Successfully written to socket: '%s'\n", buffer);
+    }
 
-    // printf("Please enter the message: ");
-    // bzero(buffer,256);
-    // fgets(buffer,255,stdin);
-    // n = write(sockfd,buffer,1);
-    // if (n < 0)
-    //     error("ERROR writing to socket");
-    // bzero(buffer,256);
-    // n = read(sockfd,buffer,256);
-    // if (n < 0)
-    //     error("ERROR reading from socket");
-    // printf("%s\n",buffer);
-
+    n = read(sockfd, &buffer, MESSAGE_SIZE);
+    if (n < 0) {
+        error("ERROR reading from socket");
+    } else {
+        printf("Successfully read from socket: '%s'\n", buffer);
+    }
 
     close(sockfd);
-    printf("Socket closed\n");
+    printf("Socket closed.\n");
     return 0;
 
 

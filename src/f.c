@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 
 #define PORT 4747
+#define MESSAGE_SIZE 4
 
 void error(const char *msg) {
     perror(msg);
@@ -51,22 +52,26 @@ int main(int argc, char *argv[]) {
         printf("Accepted connection from %s\n", strAddr);
     }
 
-    // int receivedBit = 0;
+    char buffer[MESSAGE_SIZE];
+    bzero(buffer, MESSAGE_SIZE);
+    int n = read(newsockfd, &buffer, MESSAGE_SIZE);
+    if (n < 0) {
+        error("ERROR reading from socket");
+    } else {
+        printf("Successfully read from socket: '%s'\n", buffer);
+    }
 
-    // int n = read(newsockfd, &receivedBit, sizeof(receivedBit));
-    // if (n < 0) {
-    //     error("ERROR reading from socket");
-    // }
+    buffer[0] += 5;
 
-    // printf("Received: %i\n", receivedBit);
+    n = write(newsockfd, buffer, MESSAGE_SIZE);
 
-    // n = write(newsockfd, "I got your message", 18);
+    if (n < 0) {
+        error("ERROR writing to socket");
+    } else {
+        printf("Successfully written to socket: '%s'\n", buffer);
+    }
 
-    // if (n < 0) {
-    //     error("ERROR writing to socket");
-    // }
-
-    // close(newsockfd);
+    close(newsockfd);
     close(sockfd);
     printf("Socket closed\n");
     return 0;
