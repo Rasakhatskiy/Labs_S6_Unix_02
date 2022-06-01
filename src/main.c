@@ -28,21 +28,23 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <sys/fcntl.h>
+#include <errno.h>
 
-#define PORT "4747"
+#define PORTG "4741"
+#define PORTF "4742"
+
 #define ADDRESS "127.0.0.1"
-#define MESSAGE_SIZE 4
+#define MESSAGE_SIZE 2
 
-void error(const char *msg)
-{
+void error(const char *msg) {
     perror(msg);
     exit(0);
 }
 
-int main(int argc, char *argv[]) {
-    printf("main()\n");
-
+int getFromF(char x, int isF) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    fcntl(sockfd, F_SETFL, O_NONBLOCK);
     if (sockfd < 0) {
         error("ERROR opening socket");
     } else {
@@ -56,43 +58,83 @@ int main(int argc, char *argv[]) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
+    const char* PORT = isF ? PORTF : PORTG;
     int n = getaddrinfo(ADDRESS, PORT, &hints, &servinfo);
 
-    if(n != 0) {
+    if (n != 0) {
         error("Can't get server address info\n");
     } else {
         printf("Successfuly get address info.\n");
     }
 
-    n = connect(sockfd, servinfo->ai_addr, (socklen_t) servinfo->ai_addrlen);
-    if (n != 0) {
+    do {
+        n = connect(sockfd, servinfo->ai_addr, (socklen_t) servinfo->ai_addrlen);
+    } while (n == -1 && errno == EINPROGRESS);
+
+    printf("%d\n", errno);
+    if (n == -1) {
         error("Can't connect\n");
     } else {
-        printf("Successfuly connected to %s:%s.\n", ADDRESS, PORT);
+        printf("Successfuly connected to %s:%s.\n", ADDRESS, PORTF);
     }
 
     char buffer[MESSAGE_SIZE];
 
-    printf("Please enter the message: ");
     bzero(buffer, MESSAGE_SIZE);
-    fgets(buffer, MESSAGE_SIZE - 1, stdin);
+    buffer[0] = x;
     buffer[strcspn(buffer, "\n")] = 0;
 
-    n = write(sockfd, buffer, MESSAGE_SIZE);
+    do {
+        n = send(sockfd, buffer, MESSAGE_SIZE, 0);
+        printf("I sleep 1s\n");
+        sleep(1);
+    } while (n == -1 && (errno == EAGAIN || errno == EWOULDBLOCK));
+
     if (n < 0) {
         error("ERROR writing to socket");
     } else {
-        printf("Successfully written to socket: '%s'\n", buffer);
+        printf("Successfully written to socket: '%d'\n", buffer[0] ? 1 : 0);
     }
 
-    n = read(sockfd, &buffer, MESSAGE_SIZE);
-    if (n < 0) {
+    do {
+        n = recv(sockfd, &buffer, MESSAGE_SIZE, 0);
+        printf("I sleep 1s\n");
+        sleep(1);
+    } while (n == -1 && (errno == EAGAIN || errno == EWOULDBLOCK));
+
+    if (n == -1) {
         error("ERROR reading from socket");
     } else {
-        printf("Successfully read from socket: '%s'\n", buffer);
+        printf("Successfully read from socket: '%d'\n", buffer[0] ? 1 : 0);
     }
 
     close(sockfd);
+    return buffer[0] ? 1 : 0;
+}
+
+int main(int argc, char *argv[]) {
+    printf("main()\n");
+
+    int xc, yc;
+
+    printf("Enter X: ");
+    scanf("%d", &xc);
+    printf("Enter Y: ");
+    scanf("%d", &yc);
+
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    fcntl(sockfd, F_SETFL, O_NONBLOCK);
+    if (sockfd < 0) {
+        error("ERROR opening socket");
+    } else {
+        printf("Socket opened.\n");
+    }
+
+    int rf = getFromF(xc, 1);
+    int rg = getFromF(yc, 0);
+
+    printf("result = %d && %d = %d\n", rf, rg, rf & rg);
+
     printf("Socket closed.\n");
     return 0;
 
